@@ -4,9 +4,11 @@ import edu.ucsal.fiadopay.controller.PaymentRequest;
 import edu.ucsal.fiadopay.domain.Payment;
 import edu.ucsal.fiadopay.plugins.annotations.PaymentMethod;
 import edu.ucsal.fiadopay.plugins.spi.PaymentPlugin;
+import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 
+@Component
 @PaymentMethod("PIX")
 public class PixPlugin implements PaymentPlugin {
     @Override public String method() { return "PIX"; }

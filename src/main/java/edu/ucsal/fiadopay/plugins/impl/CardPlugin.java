@@ -6,10 +6,12 @@ import edu.ucsal.fiadopay.plugins.annotations.AntiFraud;
 import edu.ucsal.fiadopay.plugins.annotations.PaymentMethod;
 import edu.ucsal.fiadopay.plugins.spi.AntiFraudRule;
 import edu.ucsal.fiadopay.plugins.spi.PaymentPlugin;
+import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
+@Component
 @PaymentMethod("CARD")
 @AntiFraud(name = "HighAmount", threshold = 1000.00)
 public class CardPlugin implements PaymentPlugin, AntiFraudRule {
