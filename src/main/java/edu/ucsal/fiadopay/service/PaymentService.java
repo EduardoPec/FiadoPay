@@ -1,6 +1,5 @@
 package edu.ucsal.fiadopay.service;
 
-import edu.ucsal.fiadopay.concurrent.WorkerPool;
 import edu.ucsal.fiadopay.controller.PaymentRequest;
 import edu.ucsal.fiadopay.controller.PaymentResponse;
 import edu.ucsal.fiadopay.domain.Merchant;
@@ -8,8 +7,10 @@ import edu.ucsal.fiadopay.domain.Payment;
 import edu.ucsal.fiadopay.plugins.PluginRegistry;
 import edu.ucsal.fiadopay.repo.MerchantRepository;
 import edu.ucsal.fiadopay.repo.PaymentRepository;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -23,7 +24,7 @@ public class PaymentService {
     private final MerchantRepository merchants;
     private final PaymentRepository payments;
     private final PluginRegistry pluginRegistry;
-    private final WorkerPool workerPool;
+    private final ThreadPoolTaskExecutor paymentExecutor;
     private final WebhookDispatcher webhookDispatcher;
 
     @Value("${fiadopay.processing-delay-ms}") long delayMs;
@@ -32,12 +33,13 @@ public class PaymentService {
     public PaymentService(MerchantRepository merchants,
                           PaymentRepository payments,
                           PluginRegistry pluginRegistry,
-                          WorkerPool workerPool,
+                          @Qualifier("paymentExecutor")
+                          ThreadPoolTaskExecutor paymentExecutor,
                           WebhookDispatcher webhookDispatcher) {
         this.merchants = merchants;
         this.payments = payments;
         this.pluginRegistry = pluginRegistry;
-        this.workerPool = workerPool;
+        this.paymentExecutor = paymentExecutor;
         this.webhookDispatcher = webhookDispatcher;
     }
 
@@ -92,12 +94,12 @@ public class PaymentService {
             payment.setStatus(Payment.Status.DECLINED);
             payment.setUpdatedAt(Instant.now());
             payments.save(payment);
-            workerPool.async().submit(() -> webhookDispatcher.enqueueDelivery(payment.getId()));
+            paymentExecutor.submit(() -> processAndWebhook(payment.getId()));
             return toResponse(payment);
         }
 
         payments.save(payment);
-        workerPool.async().submit(() -> processAndWebhook(payment.getId()));
+        paymentExecutor.submit(() -> processAndWebhook(payment.getId()));
         return toResponse(payment);
     }
 
@@ -117,7 +119,7 @@ public class PaymentService {
         p.setUpdatedAt(Instant.now());
         payments.save(p);
 
-        workerPool.async().submit(() -> webhookDispatcher.enqueueDelivery(p.getId()));
+        paymentExecutor.submit(() -> webhookDispatcher.enqueueDelivery(p.getId()));
         return java.util.Map.of("id","ref_" + UUID.randomUUID(), "status","PENDING");
     }
 

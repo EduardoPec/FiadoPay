@@ -1,18 +1,19 @@
 package edu.ucsal.fiadopay.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import edu.ucsal.fiadopay.concurrent.WorkerPool;
 import edu.ucsal.fiadopay.domain.Merchant;
 import edu.ucsal.fiadopay.domain.Payment;
 import edu.ucsal.fiadopay.domain.WebhookDelivery;
 import edu.ucsal.fiadopay.repo.MerchantRepository;
 import edu.ucsal.fiadopay.repo.PaymentRepository;
 import edu.ucsal.fiadopay.repo.WebhookDeliveryRepository;
-import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.scheduling.TaskScheduler;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
-
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -20,14 +21,15 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Date;
 import java.util.HexFormat;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 @Service
 public class WebhookDispatcher {
 
-    private final WorkerPool workerPool;
+    private final ThreadPoolTaskExecutor webhookExecutor;
+    private final TaskScheduler taskScheduler;
     private final WebhookDeliveryRepository deliveries;
     private final PaymentRepository payments;
     private final MerchantRepository merchants;
@@ -38,12 +40,14 @@ public class WebhookDispatcher {
     @Value("${fiadopay.webhook-secret:ucsal-2025}")
     private String webhookSecret;
 
-    public WebhookDispatcher(WorkerPool workerPool,
+    public WebhookDispatcher(@Qualifier("webhookExecutor") ThreadPoolTaskExecutor webhookExecutor,
+                             TaskScheduler taskScheduler,
                              WebhookDeliveryRepository deliveries,
                              PaymentRepository payments,
                              MerchantRepository merchants,
                              ObjectMapper mapper) {
-        this.workerPool = workerPool;
+        this.webhookExecutor = webhookExecutor;
+        this.taskScheduler = taskScheduler;
         this.deliveries = deliveries;
         this.payments = payments;
         this.merchants = merchants;
@@ -72,23 +76,25 @@ public class WebhookDispatcher {
 
     public void scheduleTryDeliver(Long deliveryId, int attempt) {
         long delaySec = Math.min(30, (long) Math.pow(2, Math.max(0, attempt)));
-        workerPool.scheduler().schedule(() -> {
-            try {
-                tryDeliver(deliveryId);
-            } catch (Exception e) {
-                scheduleTryDeliver(deliveryId, attempt + 1);
-            }
-        }, delaySec, TimeUnit.SECONDS);
+        taskScheduler.schedule(
+                () -> {
+                    try {
+                        tryDeliver(deliveryId);
+                    } catch (Exception e) {
+                        scheduleTryDeliver(deliveryId, attempt + 1);
+                    }
+                },
+                Date.from(Instant.now().plusSeconds(delaySec))
+        );
     }
 
     public void tryDeliver(Long deliveryId) throws Exception {
         WebhookDelivery d = deliveries.findById(deliveryId).orElseThrow();
-        if (d.isDelivered()) return; // getter correto para boolean
+        if (d.isDelivered()) return;
 
         Payment p = payments.findById(d.getPaymentId()).orElseThrow();
         Merchant m = merchants.findById(p.getMerchantId()).orElseThrow();
 
-        // Monta payload (JSON)
         Map<String, Object> payload = Map.of(
                 "paymentId", p.getId(),
                 "status", p.getStatus().name(),
@@ -131,12 +137,10 @@ public class WebhookDispatcher {
         return HexFormat.of().formatHex(sig);
     }
 
-    @PostConstruct
+    @Scheduled(initialDelay = 10_000, fixedRate = 60_000)
     public void startRedeliveryJob() {
-        workerPool.scheduler().scheduleAtFixedRate(() -> {
-            deliveries.findAll().stream()
-                    .filter(d -> !d.isDelivered()) // getter correto para boolean
-                    .forEach(d -> scheduleTryDeliver(d.getId(), Math.max(0, d.getAttempts())));
-        }, 10, 60, TimeUnit.SECONDS);
+        deliveries.findAll().stream()
+                .filter(d -> !d.isDelivered())
+                .forEach(d -> scheduleTryDeliver(d.getId(), Math.max(0, d.getAttempts())));
     }
 }
