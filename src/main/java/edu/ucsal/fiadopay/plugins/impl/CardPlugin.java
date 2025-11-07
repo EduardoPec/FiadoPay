@@ -8,6 +8,7 @@ import edu.ucsal.fiadopay.plugins.spi.AntiFraudRule;
 import edu.ucsal.fiadopay.plugins.spi.PaymentPlugin;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 @PaymentMethod("CARD")
 @AntiFraud(name = "HighAmount", threshold = 1000.00)
@@ -19,14 +20,19 @@ public class CardPlugin implements PaymentPlugin, AntiFraudRule {
         if (p == null) return;
         BigDecimal amount = p.getAmount() == null ? BigDecimal.ZERO : p.getAmount();
         Integer n = p.getInstallments();
-        BigDecimal i = BigDecimal.valueOf(p.getMonthlyInterest());
+
+        Double interestRate = null;
+        BigDecimal total = amount;
 
         if (n != null && n > 1) {
-            BigDecimal total = amount.multiply(BigDecimal.ONE.add(i).pow(n));
-            p.setTotalWithInterest(total);
-        } else {
-            p.setTotalWithInterest(amount);
+            interestRate = 1.0;
+            var base = new BigDecimal("1.01");
+            var factor = base.pow(n);
+            total = amount.multiply(factor).setScale(2, RoundingMode.HALF_UP);
         }
+
+        p.setMonthlyInterest(interestRate);
+        p.setTotalWithInterest(total);
     }
 
     @Override public String name() { return "HighAmount"; }
