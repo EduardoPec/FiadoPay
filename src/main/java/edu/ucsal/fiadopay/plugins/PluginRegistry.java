@@ -3,6 +3,7 @@ package edu.ucsal.fiadopay.plugins;
 import edu.ucsal.fiadopay.plugins.annotations.PaymentMethod;
 import edu.ucsal.fiadopay.plugins.spi.AntiFraudRule;
 import edu.ucsal.fiadopay.plugins.spi.PaymentPlugin;
+import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -13,7 +14,7 @@ public final class PluginRegistry {
     private final Map<String, PaymentPlugin> byMethod;
     private final List<AntiFraudRule> rules;
 
-    public PluginRegistry(String beanFactory) {
+    public PluginRegistry(ListableBeanFactory beanFactory) {
         Map<String, Object> beans = beanFactory.getBeansWithAnnotation(PaymentMethod.class);
 
         Map<String, PaymentPlugin> tmpByMethod = new HashMap<>();
@@ -47,4 +48,3 @@ public final class PluginRegistry {
         return byMethod.keySet();
     }
 }
-
