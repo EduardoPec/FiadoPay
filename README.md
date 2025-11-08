@@ -1,5 +1,10 @@
 # FiadoPay Simulator (Spring Boot + H2)
 
+## Participantes:
+- Eduardo Peçanha
+- Davi Goes
+- Rodrigo Barata
+
 Gateway de pagamento **FiadoPay** para a AVI/POOA.
 Substitui PSPs reais com um backend em memória (H2).
 
