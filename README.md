@@ -132,3 +132,25 @@ Além disso, a entrega de webhooks ocorre de forma não bloqueante, com retentat
 ---
 
 ## Prints
+
+### Operações GitBash
+![Operacoes no gitbash](img/GitBashOperacoes.png)
+
+### Tabela Merchant no H2
+![Tabela Merchant](img/MerchantH2.png)
+
+### Tabela Payment no H2
+![Tabela Payment](img/PaymentH2.png)
+
+### Tabela Webhook no H2
+![Tabela Webhook](img/Webhook_deliveryH2.png)
+
+### Tela inicial Swagger
+![Tela inicial Swagger](img/SwaggerTelaInicial.png)
+
+### Tela POST Payments no Swagger
+![Tela POST Payments no Swagger](img/SwaggerPostPayments.png)
+
+### Tela POST Token no Swagger
+![Tela POST Token no Swagger](img/PostToken.png)
+
